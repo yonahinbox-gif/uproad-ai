@@ -40,8 +40,8 @@ export default function App() {
   const openJoob = (id) => { setSelectedJobId(id); setPage('job') }
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '⚡' },
-    { id: 'jobs', label: 'All Jobs', icon: '🚻' },
+    { id: 'dashboard', label: 'Dashboard', icon: 'â¡' },
+    { id: 'jobs', label: 'All Jobs', icon: 'ð»' },
     { id: 'new', label: 'New Job', icon: '+' },
   ]
 
@@ -62,11 +62,7 @@ export default function App() {
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                page === item.id
-                  ? 'bg-indigo-600/20 text-indigo-300'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${page === item.id ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'}`}
             >
               <span>{item.icon}</span>
               <span>{item.label}</span>
@@ -80,7 +76,7 @@ export default function App() {
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
             AI Agent Active
           </div>
-          <div className="mt-1">💱 +1 914 730 5995</div>
+          <div className="mt-1">ð± +1 914 730 5995</div>
         </div>
       </div>
 
