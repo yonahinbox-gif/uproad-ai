@@ -1,5 +1,5 @@
 """
-Uproad AI — FastAPI Backend
+Uproad AI -- FastAPI Backend
 Handles: inbound SMS/calls from drivers, outbound voice via ElevenLabs,
          Claude dispatch agent, REST API for dashboard.
 """
@@ -23,7 +23,7 @@ from database import get_db, engine
 from models import Base, Job, Vendor
 from agent import run_dispatch_agent
 from services.elevenlabs_svc import get_signed_url, ensure_agents_exist
-from config import ELEVEL�LABS_INTAKE_AGENT_ID, ELEVENLABS_DISPATCH_AGENT_ID, BASE_URL
+from config import ELEVENLABS_INTAKE_AGENT_ID, ELEVENLABS_DISPATCH_AGENT_ID, BASE_URL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,12 +34,12 @@ app = FastAPI(title="Uproad AI", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # Runtime agent IDs (set on startup)
-INTAKE_AGENT_ID = ELEVEL�LABS_INTAKE_AGENT_ID
-DISPATCH_AGENT_ID = ELEVEL�LABS_DISPATCH_AGENT_ID
+INTAKE_AGENT_ID = ELEVENLABS_INTAKE_AGENT_ID
+DISPATCH_AGENT_ID = ELEVENLABS_DISPATCH_AGENT_ID
 
 
 # ============================================================
-# STARTUP — ensure ElevenLabs agents exist
+# STARTUP -- ensure ElevenLabs agents exist
 # ============================================================
 
 @app.on_event("startup")
@@ -71,12 +71,12 @@ def seed_vendors(db: Session):
 
 
 # ============================================================
-# TWILIO WEBHOOKS — Inbound SMS
+# TWILIO WEBHOOKS -- Inbound SMS
 # ============================================================
 
 @app.post("/webhook/sms/inbound")
 async def inbound_sms(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Driver texts the Twilio number → create job → run agent."""
+    """Driver texts the Twilio number -> create job -> run agent."""
     form = await request.form()
     from_number = form.get("From", "")
     body = form.get("Body", "").strip()
@@ -100,12 +100,12 @@ async def inbound_sms(request: Request, background_tasks: BackgroundTasks, db: S
 
     # Immediate Twilio reply
     resp = MessagingResponse()
-    resp.message("✅ Uproad Fleet: We received your report and our AI dispatch team is on it. You'll get an update shortly. Stay safe and keep your hazards on.")
+    resp.message("[OK] Uproad Fleet: We received your report and our AI dispatch team is on it. You'll get an update shortly. Stay safe and keep your hazards on.")
     return Response(content=str(resp), media_type="application/xml")
 
 
 # ============================================================
-# TWILIO WEBHOOKS — Inbound Voice (driver calls)
+# TWILIO WEBHOOKS -- Inbound Voice (driver calls)
 # ============================================================
 
 @app.post("/webhook/voice/inbound")
@@ -138,7 +138,7 @@ async def inbound_voice(request: Request):
 async def outbound_voice_twiml(request: Request):
     """
     TwiML for outbound vendor calls.
-    Twilio calls vendor → connects to ElevenLabs dispatch agent.
+    Twilio calls vendor -> connects to ElevenLabs dispatch agent.
     """
     global DISPATCH_AGENT_ID
     params = dict(request.query_params)
@@ -165,20 +165,24 @@ async def outbound_voice_twiml(request: Request):
 
 
 @app.post("/webhook/voice/status")
-async def voice_status_callback(requestet("CallStatus", "")
+async def voice_status_callback(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Twilio call status webhook -- update job when call completes."""
+    form = await request.form()
+    call_sid = form.get("CallSid", "")
+    call_status = form.get("CallStatus", "")
     logger.info(f"Call {call_sid} status: {call_status}")
     return {"ok": True}
 
 
 # ============================================================
-# WEBSOCKET — ElevenLabs ↔ Twilio audio proxy
+# WEBSOCKET -- ElevenLabs <-> Twilio audio proxy
 # ============================================================
 
 @app.websocket("/ws/voice/{call_type}")
 async def voice_websocket(websocket: WebSocket, call_type: str):
     """
     Bidirectional audio proxy between Twilio Media Streams and ElevenLabs Conversational AI.
-    call_type: 'intake' (driver → us) or 'dispatch' (us → vendor)
+    call_type: 'intake' (driver -> us) or 'dispatch' (us -> vendor)
     """
     await websocket.accept()
     params = dict(websocket.query_params)
@@ -202,7 +206,7 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
 
         async with websockets.connect(signed_url) as el_ws:
 
-            # Send initial context to ElevenLabs
+            # Send initial context to ElevenLabElevenLabs
             context_msg = {
                 "type": "conversation_initiation_client_data",
                 "conversation_config_override": {
@@ -282,7 +286,7 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
                             conv_id = msg.get("conversation_initiation_metadata_event", {}).get("conversation_id")
                             logger.info(f"ElevenLabs conversation: {conv_id}")
 
-                except Exception as e:
+       except Exception as e:
                     logger.info(f"ElevenLabs WS closed: {e}")
 
             await asyncio.gather(twilio_to_elevenlabs(), elevenlabs_to_twilio())
@@ -309,7 +313,7 @@ async def create_job_from_call(driver_phone: str, transcript: str):
     job = Job(
         status="OPEN",
         type="ROADSIDE",
-        summary=transcript[:200] if transcript else "Inbound call — no transcript",
+        summary=transcript[:200] if transcript else "Inbound call -- no transcript",
         raw_message=transcript,
         driver_phone=driver_phone,
         source="call",
@@ -365,13 +369,13 @@ def _run_agent_sync(job_id: str):
 
 
 async def run_agent_for_job(job_id: str):
-    """Async wrapper — runs sync agent in thread pool."""
+    """Async wrapper -- runs sync agent in thread pool."""
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, lambda: _run_agent_sync(job_id))
 
 
 # ============================================================
-# REST API — Dashboard
+# REST API -- Dashboard
 # ============================================================
 
 @app.get("/api/v1/jobs")
