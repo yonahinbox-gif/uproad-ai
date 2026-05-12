@@ -63,8 +63,8 @@ def seed_vendors(db: Session):
         for v in VENDORS:
             db.add(Vendor(
                 id=v["id"], name=v["name"], phone=v["phone"],
-                service_types=v["types"], coverage_area=v["coverage"],
-                rating=v["rating"], avg_response_min=v["eta_min"]
+                service_types=v["service_types"], coverage_area=v["coverage_area"],
+                rating=v["rating"], avg_response_min=v["avg_response_min"]
             ))
         db.commit()
         logger.info("Seeded vendor database")
