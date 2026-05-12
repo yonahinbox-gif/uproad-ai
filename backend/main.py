@@ -490,6 +490,32 @@ def job_to_dict(job: Job, full: bool = False) -> dict:
     return d
 
 
+
+
+# ============================================================
+# ONE-TIME SETUP ENDPOINT (self-configures Twilio webhooks)
+# ============================================================
+
+@app.post("/admin/setup-webhooks")
+async def setup_webhooks():
+    from config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, BASE_URL
+    from twilio.rest import Client as TwilioClient
+    try:
+        tc = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        numbers = tc.incoming_phone_numbers.list(phone_number=TWILIO_PHONE_NUMBER)
+        if not numbers:
+            return {"error": "phone number not found", "searched": TWILIO_PHONE_NUMBER}
+        num = numbers[0]
+        updated = num.update(
+            voice_url=BASE_URL + "/webhook/voice/inbound",
+            voice_method="POST",
+            sms_url=BASE_URL + "/webhook/sms/inbound",
+            sms_method="POST"
+        )
+        return {"success": True, "sid": num.sid, "voice_url": updated.voice_url, "sms_url": updated.sms_url}
+    except Exception as e:
+        return {"error": str(e)}
+
 # ============================================================
 # SERVE REACT FRONTEND (production)
 # ============================================================
