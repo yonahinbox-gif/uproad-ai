@@ -2,6 +2,6 @@
 builder = "dockerfile"
 
 [deploy]
-startCommand = "cd /app/backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "/bin/sh -c 'cd /app/backend && uvicorn main:app --host 0.0.0.0 --port $PORT'"
 healthcheckPath = "/api/v1/stats"
 restartPolicyType = "on_failure"
