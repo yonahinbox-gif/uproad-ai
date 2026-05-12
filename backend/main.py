@@ -54,7 +54,10 @@ async def startup():
         logger.info(f"Dispatch agent: {DISPATCH_AGENT_ID}")
     except Exception as e:
         logger.warning(f"Could not set up ElevenLabs agents: {e}. Voice calls may not work.")
-    seed_vendors(next(get_db()))
+    try:
+        seed_vendors(next(get_db()))
+    except Exception as e:
+        logger.warning(f"seed_vendors failed: {e}")
 
 
 def seed_vendors(db: Session):
@@ -63,7 +66,7 @@ def seed_vendors(db: Session):
         for v in VENDORS:
             db.add(Vendor(
                 id=v["id"], name=v["name"], phone=v["phone"],
-                service_types=v["service_types"], coverage_area=v["coverage_area"],
+                service_types=json.dumps(v["service_types"]), coverage_area=v["coverage_area"],
                 rating=v["rating"], avg_response_min=v["avg_response_min"]
             ))
         db.commit()
