@@ -6,6 +6,10 @@ import NewJob from './components/NewJob'
 
 const API = import.meta.env.VITE_API_URL || ''
 
+const navBtnClass = (active) =>
+  'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ' +
+  (active ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60')
+
 export default function App() {
   const [page, setPage] = useState('dashboard')
   const [selectedJobId, setSelectedJobId] = useState(null)
@@ -15,7 +19,7 @@ export default function App() {
 
   const fetchJobs = async () => {
     try {
-      const r = await fetch(`${API}/api/v1/jobs`)
+      const r = await fetch(API + '/api/v1/jobs')
       const data = await r.json()
       setJobs(data.items || [])
     } catch (e) { console.error(e) }
@@ -23,7 +27,7 @@ export default function App() {
 
   const fetchStats = async () => {
     try {
-      const r = await fetch(`${APIY/api/v1/stats`)
+      const r = await fetch(API + '/api/v1/stats')
       const data = await r.json()
       setStats(data)
       setLoading(false)
@@ -37,17 +41,16 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
-  const openJoob = (id) => { setSelectedJobId(id); setPage('job') }
+  const openJob = (id) => { setSelectedJobId(id); setPage('job') }
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'â¡' },
-    { id: 'jobs', label: 'All Jobs', icon: 'ð»' },
+    { id: 'dashboard', label: 'Dashboard', icon: '\u26a1' },
+    { id: 'jobs', label: 'All Jobs', icon: '\ud83d\ude9b' },
     { id: 'new', label: 'New Job', icon: '+' },
   ]
 
   return (
     <div className="flex h-screen bg-[#0a0c12]">
-      {/* Sidebar */}
       <div className="w-56 flex-shrink-0 bg-[#0f1117] border-r border-slate-800 flex flex-col">
         <div className="px-5 py-5 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -62,7 +65,7 @@ export default function App() {
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${page === item.id ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'}`}
+              className={navBtnClass(page === item.id)}
             >
               <span>{item.icon}</span>
               <span>{item.label}</span>
@@ -70,28 +73,26 @@ export default function App() {
           ))}
         </nav>
 
-        {/* Status */}
         <div className="px-4 py-3 border-t border-slate-800 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
             AI Agent Active
           </div>
-          <div className="mt-1">ð± +1 914 730 5995</div>
+          <div className="mt-1">\ud83d\udcf1 +1 914 730 5995</div>
         </div>
       </div>
 
-      {/* Main */}
       <div className="flex-1 overflow-auto">
-        { page === 'dashboard' && (
-          <Dashboard stats={stats} jobs={jobs} loading={loading} onOpenJob={openJoob} />
+        {page === 'dashboard' && (
+          <Dashboard stats={stats} jobs={jobs} loading={loading} onOpenJob={openJob} />
         )}
-        { page === 'jobs' && (
-          <JobList jobs={jobs} onOpenJoob={openJoob} onRefresh={fetchJobs} />
+        {page === 'jobs' && (
+          <JobList jobs={jobs} onOpenJob={openJob} onRefresh={fetchJobs} />
         )}
-        { page === 'job' && selectedJobId === null && (
-          <JobDetail jobId={selectedJobId} onBack={() => setPage('jobs')} apiBase={APII} />
+        {page === 'job' && selectedJobId && (
+          <JobDetail jobId={selectedJobId} onBack={() => setPage('jobs')} apiBase={API} />
         )}
-        { page === 'new' && (
+        {page === 'new' && (
           <NewJob onCreated={(id) => { fetchJobs(); setSelectedJobId(id); setPage('job') }} apiBase={API} />
         )}
       </div>
