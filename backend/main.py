@@ -39,7 +39,7 @@ DISPATCH_AGENT_ID = ELEVENLABS_DISPATCH_AGENT_ID
 
 
 # ============================================================
-# STARTUP
+# STARTUP — ensure ElevenLabs agents exist
 # ============================================================
 
 @app.on_event("startup")
@@ -85,6 +85,7 @@ async def inbound_sms(request: Request, background_tasks: BackgroundTasks, db: S
     body = form.get("Body", "").strip()
     logger.info(f"Inbound SMS from {from_number}: {body}")
 
+    # Create job
     job = Job(
         status="OPEN",
         type="ROADSIDE",
@@ -96,20 +97,26 @@ async def inbound_sms(request: Request, background_tasks: BackgroundTasks, db: S
     db.add(job)
     db.commit()
     db.refresh(job)
+
+    # Run agent in background
     background_tasks.add_task(run_agent_for_job, job.id)
 
+    # Immediate Twilio reply
     resp = MessagingResponse()
-    resp.message("Uproad Fleet: We received your report and our AI dispatch team is on it. You will get an update shortly. Stay safe and keep your hazards on.")
+    resp.message("Uproad Fleet: We received your report and our AI dispatch team is on it. You'll get an update shortly. Stay safe and keep your hazards on.")
     return Response(content=str(resp), media_type="application/xml")
 
 
 # ============================================================
-# TWILIO WEBHOOKS — Inbound Voice
+# TWILIO WEBHOOKS — Inbound Voice (driver calls)
 # ============================================================
 
 @app.post("/webhook/voice/inbound")
 async def inbound_voice(request: Request):
-    """Driver calls. Gets ElevenLabs signed URL and streams directly — no proxy needed."""
+    """
+    Driver calls the Twilio number.
+    Gets a signed URL from ElevenLabs and connects the call directly.
+    """
     global INTAKE_AGENT_ID
     form = await request.form()
     call_sid = form.get("CallSid", "")
@@ -123,6 +130,7 @@ async def inbound_voice(request: Request):
         return Response(content=str(resp), media_type="application/xml")
 
     try:
+        # Get a signed WebSocket URL and stream directly to ElevenLabs
         signed_url = await get_signed_url(INTAKE_AGENT_ID)
         connect = Connect()
         stream = Stream(url=signed_url)
@@ -137,7 +145,10 @@ async def inbound_voice(request: Request):
 
 @app.post("/webhook/voice/outbound")
 async def outbound_voice_twiml(request: Request):
-    """TwiML for outbound vendor calls via ElevenLabs dispatch agent."""
+    """
+    TwiML for outbound vendor calls.
+    Twilio calls vendor -> connects directly to ElevenLabs dispatch agent.
+    """
     global DISPATCH_AGENT_ID
     params = dict(request.query_params)
     agent_id = params.get("agent_id", DISPATCH_AGENT_ID)
@@ -150,7 +161,7 @@ async def outbound_voice_twiml(request: Request):
     resp = VoiceResponse()
 
     if not agent_id:
-        resp.say(f"Hello, this is Uproad Fleet Management calling about roadside assistance job {job_id}. Please call us back.")
+        resp.say(f"Hello, this is Uproad Fleet Management calling about a roadside assistance request for job {job_id}. Please call us back at your earliest convenience.")
         return Response(content=str(resp), media_type="application/xml")
 
     try:
@@ -167,13 +178,14 @@ async def outbound_voice_twiml(request: Request):
         resp.append(connect)
     except Exception as e:
         logger.error(f"ElevenLabs dispatch signed URL error: {e}")
-        resp.say(f"Hello, this is Uproad Fleet Management. Urgent dispatch for job {job_id}. Vehicle: {vehicle} at {location}. Issue: {problem}. Please call us back.")
+        resp.say(f"Hello, this is Uproad Fleet Management. We have an urgent dispatch for job {job_id}. The vehicle is {vehicle} at {location} with the following issue: {problem}. Please call us back.")
 
     return Response(content=str(resp), media_type="application/xml")
 
 
 @app.post("/webhook/voice/status")
 async def voice_status_callback(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Twilio call status webhook -- update job when call completes."""
     form = await request.form()
     call_sid = form.get("CallSid", "")
     call_status = form.get("CallStatus", "")
@@ -182,11 +194,15 @@ async def voice_status_callback(request: Request, background_tasks: BackgroundTa
 
 
 # ============================================================
-# WEBSOCKET — ElevenLabs proxy (fallback, kept for reference)
+# WEBSOCKET — ElevenLabs <-> Twilio audio proxy
 # ============================================================
 
 @app.websocket("/ws/voice/{call_type}")
 async def voice_websocket(websocket: WebSocket, call_type: str):
+    """
+    Bidirectional audio proxy between Twilio Media Streams and ElevenLabs Conversational AI.
+    call_type: 'intake' (driver -> us) or 'dispatch' (us -> vendor)
+    """
     await websocket.accept()
     params = dict(websocket.query_params)
     agent_id = params.get("agent_id", "")
@@ -204,9 +220,12 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
         return
 
     try:
+        # Get signed URL from ElevenLabs
         signed_url = await get_signed_url(agent_id)
 
         async with websockets.connect(signed_url) as el_ws:
+
+            # Send initial context to ElevenLabs
             context_msg = {
                 "type": "conversation_initiation_client_data",
                 "conversation_config_override": {
@@ -231,14 +250,20 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
                         raw = await websocket.receive_text()
                         msg = json.loads(raw)
                         event = msg.get("event")
+
                         if event == "start":
                             stream_sid = msg.get("streamSid") or msg.get("start", {}).get("streamSid")
+                            logger.info(f"Stream started: {stream_sid}")
+
                         elif event == "media":
                             payload = msg.get("media", {}).get("payload", "")
                             if payload:
                                 await el_ws.send(json.dumps({"user_audio_chunk": payload}))
+
                         elif event == "stop":
+                            logger.info(f"Twilio stream stopped: {stream_sid}")
                             break
+
                 except (WebSocketDisconnect, Exception) as e:
                     logger.info(f"Twilio WS closed: {e}")
 
@@ -248,25 +273,38 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
                     async for raw in el_ws:
                         msg = json.loads(raw)
                         msg_type = msg.get("type")
+
                         if msg_type == "audio":
                             audio_b64 = msg.get("audio_event", {}).get("audio_base_64", "")
                             if audio_b64 and stream_sid:
-                                await websocket.send_text(json.dumps({
+                                twilio_msg = {
                                     "event": "media",
                                     "streamSid": stream_sid,
                                     "media": {"payload": audio_b64}
-                                }))
+                                }
+                                await websocket.send_text(json.dumps(twilio_msg))
+
                         elif msg_type == "interruption":
                             if stream_sid:
-                                await websocket.send_text(json.dumps({"event": "clear", "streamSid": stream_sid}))
+                                await websocket.send_text(json.dumps({
+                                    "event": "clear",
+                                    "streamSid": stream_sid
+                                }))
+
                         elif msg_type == "agent_response":
                             text = msg.get("agent_response_event", {}).get("agent_response", "")
                             if text:
                                 transcript_chunks.append(f"Agent: {text}")
+
                         elif msg_type == "user_transcript":
                             text = msg.get("user_transcription_event", {}).get("user_transcript", "")
                             if text:
                                 transcript_chunks.append(f"Caller: {text}")
+
+                        elif msg_type == "conversation_initiation_metadata":
+                            conv_id = msg.get("conversation_initiation_metadata_event", {}).get("conversation_id")
+                            logger.info(f"ElevenLabs conversation: {conv_id}")
+
                 except Exception as e:
                     logger.info(f"ElevenLabs WS closed: {e}")
 
@@ -275,9 +313,13 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
     except Exception as e:
         logger.error(f"WebSocket proxy error: {e}")
     finally:
+        # If it was an inbound driver call, create a job from the transcript
         if call_type == "intake" and transcript_chunks and from_number:
             transcript = "\n".join(transcript_chunks)
+            logger.info(f"Inbound call transcript:\n{transcript}")
+            # Schedule job creation from transcript
             asyncio.create_task(create_job_from_call(from_number, transcript))
+
         try:
             await websocket.close()
         except:
@@ -285,11 +327,12 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
 
 
 async def create_job_from_call(driver_phone: str, transcript: str):
+    """Create a job from an inbound driver call transcript, then run agent."""
     db = next(get_db())
     job = Job(
         status="OPEN",
         type="ROADSIDE",
-        summary=transcript[:200] if transcript else "Inbound call",
+        summary=transcript[:200] if transcript else "Inbound call — no transcript",
         raw_message=transcript,
         driver_phone=driver_phone,
         source="call",
@@ -305,7 +348,21 @@ async def create_job_from_call(driver_phone: str, transcript: str):
 # AGENT BACKGROUND TASK
 # ============================================================
 
+def _parse_list(val):
+    """Safely parse a value that should be a list -- handles JSON strings from SQLite."""
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+    return []
+
+
 def _run_agent_sync(job_id: str):
+    """Synchronous wrapper for run_dispatch_agent (for use in thread executor)."""
     db = next(get_db())
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
@@ -325,8 +382,9 @@ def _run_agent_sync(job_id: str):
 
     result = run_dispatch_agent(job_dict, dispatch_agent_id=DISPATCH_AGENT_ID)
 
-    job.actions = (job.actions or []) + result["actions"]
-    job.agent_runs = (job.agent_runs or []) + [result["agent_run"]]
+    # Apply updates to DB -- parse stored values in case SQLite returns JSON as strings
+    job.actions = _parse_list(job.actions) + result["actions"]
+    job.agent_runs = _parse_list(job.agent_runs) + [result["agent_run"]]
 
     updates = result.get("job_updates", {})
     if updates.get("status"):
@@ -343,6 +401,7 @@ def _run_agent_sync(job_id: str):
 
 
 async def run_agent_for_job(job_id: str):
+    """Async wrapper -- runs sync agent in thread pool."""
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, lambda: _run_agent_sync(job_id))
 
@@ -379,6 +438,7 @@ class CreateJobRequest(BaseModel):
 
 @app.post("/api/v1/jobs")
 async def create_job(req: CreateJobRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Manually create a job (fleet manager UI)."""
     job = Job(
         status="OPEN",
         type="ROADSIDE",
@@ -435,27 +495,6 @@ def health():
     return {"status": "ok", "service": "Uproad AI"}
 
 
-@app.post("/admin/setup-webhooks")
-async def setup_webhooks():
-    from config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, BASE_URL
-    from twilio.rest import Client as TwilioClient
-    try:
-        tc = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        numbers = tc.incoming_phone_numbers.list(phone_number=TWILIO_PHONE_NUMBER)
-        if not numbers:
-            return {"error": "phone number not found", "searched": TWILIO_PHONE_NUMBER}
-        num = numbers[0]
-        updated = num.update(
-            voice_url=BASE_URL + "/webhook/voice/inbound",
-            voice_method="POST",
-            sms_url=BASE_URL + "/webhook/sms/inbound",
-            sms_method="POST"
-        )
-        return {"success": True, "sid": num.sid, "voice_url": updated.voice_url, "sms_url": updated.sms_url}
-    except Exception as e:
-        return {"error": str(e)}
-
-
 def job_to_dict(job: Job, full: bool = False) -> dict:
     d = {
         "id": job.id,
@@ -474,8 +513,8 @@ def job_to_dict(job: Job, full: bool = False) -> dict:
         "resolved_at": job.resolved_at.isoformat() if job.resolved_at else None,
     }
     if full:
-        d["actions"] = job.actions or []
-        d["agent_runs"] = job.agent_runs or []
+        d["actions"] = _parse_list(job.actions)
+        d["agent_runs"] = _parse_list(job.agent_runs)
         d["raw_message"] = job.raw_message
     return d
 
