@@ -25,9 +25,19 @@ export default function NewJob({ onCreated, apiBase }) {
       const r = await fetch(`${apiBase}/api/v1/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, source: 'manual' }),
+        body: JSON.stringify({
+          driver_phone: form.driver_phone || '',
+          driver_name: form.driver_name || null,
+          vehicle_info: form.vehicle_info || null,
+          location: form.location || null,
+          message: form.raw_message,
+          source: 'manual',
+        }),
       })
-      if (!r.ok) throw new Error('Failed to create job')
+      if (!r.ok) {
+        const errData = await r.json().catch(() => ({}))
+        throw new Error(errData.detail || `Server error ${r.status}`)
+      }
       const data = await r.json()
       onCreated(data.id)
     } catch (e) {
@@ -116,7 +126,7 @@ export default function NewJob({ onCreated, apiBase }) {
           disabled={loading}
           className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
         >
-          {loading ? '⚡ Dispatching AI Agent...' : 'Create Job & Dispatch Agent'}
+          {loading ? 'Dispatching AI Agent...' : 'Create Job & Dispatch Agent'}
         </button>
       </form>
     </div>
