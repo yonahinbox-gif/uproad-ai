@@ -1,8 +1,8 @@
 FROM python:3.11-slim
 
-# Install Node.js 20
+# Install Node.js 22
 RUN apt-get update && apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Build frontend (produces /app/frontend/dist)
 COPY frontend ./frontend
-RUN cd frontend && npm install && npm run build
+RUN cd frontend && npm install
+RUN cd frontend && npm run build 2>&1
 
 # Copy rest of backend
 COPY backend ./backend
