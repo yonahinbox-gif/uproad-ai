@@ -286,7 +286,7 @@ async def voice_websocket(websocket: WebSocket, call_type: str):
                             conv_id = msg.get("conversation_initiation_metadata_event", {}).get("conversation_id")
                             logger.info(f"ElevenLabs conversation: {conv_id}")
 
-       except Exception as e:
+                except Exception as e:
                     logger.info(f"ElevenLabs WS closed: {e}")
 
             await asyncio.gather(twilio_to_elevenlabs(), elevenlabs_to_twilio())
