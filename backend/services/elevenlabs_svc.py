@@ -27,8 +27,8 @@ A truck driver is calling because their vehicle has broken down or needs roadsid
 Your job:
 1. Greet them warmly and professionally.
 2. Ask for their name and what vehicle they're driving (make, model, year if they know it).
-3. Ask exactly what the problem is — be specific (tire flat? engine warning light? out of fuel? stuck?).
-4. Ask for their exact location — highway name, exit number, nearest mile marker, or address.
+3. Ask exactly what the problem is -- be specific (tire flat? engine warning light? out of fuel? stuck?).
+4. Ask for their exact location -- highway name, exit number, nearest mile marker, or address.
 5. Tell them: "Got it. I'm dispatching help right now and you'll get a text confirmation shortly. Stay with your vehicle and keep your hazards on."
 6. Thank them and end the call professionally.
 
@@ -147,7 +147,7 @@ async def ensure_agents_exist(intake_id: str, dispatch_id: str) -> tuple[str, st
         intake_id = await create_agent(
             name="Uproad Intake Agent",
             system_prompt=INTAKE_SYSTEM_PROMPT,
-            first_message="Hi, you've reached Uproad Fleet roadside assistance. This is Alex — what's happening with your truck today?"
+            first_message="Hi, you've reached Uproad Fleet roadside assistance. This is Alex -- what's happening with your truck today?"
         )
 
     # Verify or create dispatch agent
