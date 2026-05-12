@@ -1,6 +1,6 @@
 """
 Claude-powered RoadsideDispatchAgent.
-Receives job context → uses tools to coordinate dispatch.
+Receives job context -> uses tools to coordinate dispatch.
 """
 import anthropic
 import json
@@ -14,7 +14,7 @@ from config import ANTHROPIC_API_KEY, BASE_URL
 logger = logging.getLogger(__name__)
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-SYSTEM_PROMPT = """You are the Uproad AI Dispatch Agent — an autonomous coordinator for commercial fleet roadside assistance.
+SYSTEM_PROMPT = """You are the Uproad AI Dispatch Agent -- an autonomous coordinator for commercial fleet roadside assistance.
 
 When you receive a breakdown job, you MUST:
 1. Send an immediate SMS to the driver confirming you're on it
@@ -112,7 +112,7 @@ def execute_tool(tool_name: str, tool_input: dict, job: dict, dispatch_agent_id:
         return {"vendors": vendors, "count": len(vendors)}
 
     elif tool_name == "make_voice_call":
-        # Build the TwiML URL that connects Twilio → ElevenLabs
+        # Build the TwiML URL that connects Twilio -> ElevenLabs
         import urllib.parse
         params = urllib.parse.urlencode({
             "agent_id": dispatch_agent_id,
@@ -133,7 +133,7 @@ def execute_tool(tool_name: str, tool_input: dict, job: dict, dispatch_agent_id:
         return call_result
 
     elif tool_name == "update_job":
-        # Return the update — caller applies it to the DB
+        # Return the update -- caller applies it to the DB
         return {"updated": True, **tool_input}
 
     return {"error": f"Unknown tool: {tool_name}"}
@@ -168,7 +168,7 @@ Please handle this end to end: confirm with driver, find vendor, call vendor, up
 
     logger.info(f"[{run_id}] Starting dispatch agent for job {job['id']}")
 
-    # Agentic loop — keep going until model stops using tools
+    # Agentic loop -- keep going until model stops using tools
     iteration = 0
     max_iterations = 10
 
